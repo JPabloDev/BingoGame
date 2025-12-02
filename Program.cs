@@ -13,9 +13,6 @@ class Program
     const string HOST = "127.0.0.1";
     static readonly Random rng = new Random();
 
-    // Mensajes simples por línea (terminados en \n)
-    // Tipos: CARD|... , BALL|B12 , BINGO_CLAIM|playerId , BINGO_VALID|playerId , BINGO_INVALID|playerId , GAME_OVER|playerId
-
     static void Main()
     {
         Console.WriteLine("¿Quieres ejecutar como (S)ervidor o (C)liente?");
@@ -106,18 +103,16 @@ class Program
                                     lock (ballLock)
                                     {
                                         if (!gameEnded)
-                                        {
-                                            // validate claimant's card
-                                            var c = client; // for simplicity we validate the card we stored for this socket
+                                        {                                         
+                                            var c = client;
                                             if (ValidateBingo(c.Card, drawnBalls))
                                             {
-                                                // winner!
+                                                // ganador
                                                 gameEnded = true;
                                                 winnerId = claimant;
                                                 Console.WriteLine($"BINGO VALIDO: {winnerId}");
                                                 Broadcast(clients, $"BINGO_VALID|{winnerId}");
                                                 Broadcast(clients, $"GAME_OVER|{winnerId}");
-                                                // stop drawing thread by setting gameEnded true
                                             }
                                             else
                                             {
@@ -127,7 +122,6 @@ class Program
                                         }
                                     }
                                 }
-                                // ignore others
                             }
                         }
                         catch (Exception ex)
@@ -153,8 +147,6 @@ class Program
         })
         { IsBackground = true };
         acceptThread.Start();
-
-        // Thread: draw balls periodically until someone wins or no balls left
         Thread drawThread = new Thread(() =>
         {
             var remainingBalls = new List<string>(allBalls);
@@ -178,7 +170,7 @@ class Program
                 // wait a bit between draws, shorter if few players or faster testing
                 for (int i = 0; i < 10; i++)
                 {
-                    Thread.Sleep(250); // small sleeps to be responsive to game end
+                    Thread.Sleep(1000); // small sleeps to be responsive to game end
                     lock (ballLock)
                     {
                         if (gameEnded) break;
@@ -239,14 +231,12 @@ class Program
             }
             catch
             {
-                // ignore send errors here; client read loop handles disconnection
             }
         }
     }
 
     static bool ValidateBingo(int[,] card, HashSet<string> drawnBalls)
     {
-        // build set of drawn numbers as ints
         var drawnInts = new HashSet<int>();
         foreach (var b in drawnBalls)
         {
@@ -254,19 +244,17 @@ class Program
             string numStr = b.Substring(1);
             if (int.TryParse(numStr, out int n)) drawnInts.Add(n);
         }
-        // check rows
         for (int r = 0; r < 5; r++)
         {
             bool full = true;
             for (int c = 0; c < 5; c++)
             {
                 int val = card[r, c];
-                if (val == 0) continue; // FREE
+                if (val == 0) continue;
                 if (!drawnInts.Contains(val)) { full = false; break; }
             }
             if (full) return true;
         }
-        // check cols
         for (int c = 0; c < 5; c++)
         {
             bool full = true;
@@ -343,14 +331,13 @@ class Program
                 card[row, col] = pool[row];
             }
         }
-        // FREE center
         card[2, 2] = 0;
         return card;
     }
 
     static string SerializeCard(int[,] card)
     {
-        // CSV rows with ; between cells, 0 means FREE
+        // CSV
         var parts = new List<string>();
         for (int r = 0; r < 5; r++)
         {
@@ -533,7 +520,7 @@ class Program
             for (int c = 0; c < 5; c++)
             {
                 string cell;
-                if (card[r, c] == 0) cell = "FREE";
+                if (card[r, c] == 0) cell = "  ";
                 else cell = card[r, c].ToString().PadLeft(2, ' ');
                 if (marked[r, c]) Console.Write($"[{cell}] ");
                 else Console.Write($" {cell}  ");
@@ -544,14 +531,14 @@ class Program
 
     static bool CheckLocalBingo(bool[,] marked)
     {
-        // rows
+        // Filas
         for (int r = 0; r < 5; r++)
         {
             bool full = true;
             for (int c = 0; c < 5; c++) if (!marked[r, c]) { full = false; break; }
             if (full) return true;
         }
-        // cols
+        // Columnas
         for (int c = 0; c < 5; c++)
         {
             bool full = true;
